@@ -132,7 +132,6 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
                 }
             }
         }
-        permits.release(checkedOutWriters.size());
         return Collections.unmodifiableList(checkedOutWriters);
     }
 
