@@ -765,6 +765,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     }
 
     public synchronized void refresh(String source) throws EngineException {
+        logger.debug("Initiating refresh from source: [{}]", source);
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
