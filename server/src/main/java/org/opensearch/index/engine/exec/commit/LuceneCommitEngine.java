@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -61,6 +62,7 @@ public class LuceneCommitEngine implements Committer {
         this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy, null, globalCheckpointSupplier);
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
         this.store = store;
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         if (primaryMode) {
