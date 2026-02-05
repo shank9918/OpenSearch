@@ -60,7 +60,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
             () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
             LinkedList::new,
-            Runtime.getRuntime().availableProcessors()
+            Runtime.getRuntime().availableProcessors(),
+            3
         );
     }
 

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
 public class CompositeDataFormatWriterPool implements Iterable<CompositeDataFormatWriter>, Closeable {
@@ -30,15 +31,18 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
     private final LockableConcurrentQueue<CompositeDataFormatWriter> availableWriters;
     private final Supplier<CompositeDataFormatWriter> writerSupplier;
     private volatile boolean closed;
+    private final Semaphore permits;
 
     public CompositeDataFormatWriterPool(
         Supplier<CompositeDataFormatWriter> writerSupplier,
         Supplier<Queue<CompositeDataFormatWriter>> queueSupplier,
-        int concurrency
+        int concurrency,
+        int maxWriters
     ) {
         this.writers = Collections.newSetFromMap(new IdentityHashMap<>());
         this.writerSupplier = writerSupplier;
         this.availableWriters = new LockableConcurrentQueue<>(queueSupplier, concurrency);
+        this.permits = new Semaphore(maxWriters, true);
     }
 
     /**
@@ -49,8 +53,28 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
      */
     public CompositeDataFormatWriter getAndLock() {
         ensureOpen();
-        CompositeDataFormatWriter compositeDataFormatWriter = availableWriters.lockAndPoll();
-        return Objects.requireNonNullElseGet(compositeDataFormatWriter, this::fetchWriter);
+
+        try {
+            permits.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for writer permit", e);
+        }
+
+        boolean success = false;
+
+        try {
+            CompositeDataFormatWriter writer = availableWriters.lockAndPoll();
+            if (writer == null) {
+                writer = fetchWriter();
+            }
+            success = true;
+            return writer;
+        } finally {
+            if (!success) {
+                permits.release();
+            }
+        }
     }
 
     /**
@@ -78,6 +102,7 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
             "CompositeDataFormatWriter has pending flush: " + state.isFlushPending() + " aborted=" + state.isAborted();
         assert isRegistered(state) : "CompositeDocumentWriterPool doesn't know about this CompositeDataFormatWriter";
         availableWriters.addAndUnlock(state);
+        permits.release();
     }
 
     /**
@@ -107,6 +132,7 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeDataForm
                 }
             }
         }
+        permits.release(checkedOutWriters.size());
         return Collections.unmodifiableList(checkedOutWriters);
     }
 
